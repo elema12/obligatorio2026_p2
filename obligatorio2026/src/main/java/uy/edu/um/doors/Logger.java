@@ -1,6 +1,7 @@
 package uy.edu.um.doors;
 
 import uy.edu.um.tad.list.MyList;
+import uy.edu.um.tad.stack.EmptyStackException;
 import uy.edu.um.tad.stack.MyStack;
 
 import java.io.FileWriter;
@@ -108,7 +109,7 @@ public class Logger {
      * NOTA: este método consume (vacía) la pila al hacer pop().
      * Si no querés vaciarla, el manager debe pasarte una copia.
      */
-    public void logStackOverflow(MyStack<Process> stack) {
+    public void logStackOverflow(MyStack<Process> stack) throws EmptyStackException {
         StringBuilder sb = new StringBuilder();
         sb.append(timestamp()).append(": Finished process stack overflow");
 

@@ -50,7 +50,77 @@ public class ProcessManagerImpl implements ProcessManager{
 
     @Override
     public void loadProcessAndUserData(String processCsvPath, String usersCsvPath) {
-        System.out.println("IMPLEMENTAR");
+
+        // PASO 1: cargar usuarios
+        try (BufferedReader br = new BufferedReader(new FileReader(usersCsvPath))) {  // abre el archivo de usuarios
+            br.readLine();                                                            // saltea uid;alias;type
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(";");                                      // parte por cada ;
+                int uid = Integer.parseInt(parts[0].trim());                           // "25" → 25
+                String alias = parts[1].trim();
+                UserType type = UserType.valueOf(parts[2].trim());                     // "ADMIN" → UserType.ADMIN
+                User user = new User(uid, alias, type);
+                users.put(uid, user);                                                  // lo guarda en el hash
+            }
+        } catch (IOException e) {
+            System.out.println("Error leyendo usuarios: " + e.getMessage());
+            return;
+        }
+
+        // PASO 2: cargar procesos
+        try (BufferedReader br = new BufferedReader(new FileReader(processCsvPath))) {  // abre el archivo de procesos
+            br.readLine();                                                              // saltea pid;uid;name;events
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(";", 4);                                    // parte en maximo 4 ( si el evento tiene algun ; queda junto igual )
+                int pid = Integer.parseInt(parts[0].trim());
+                int uid = Integer.parseInt(parts[1].trim());
+                String name = parts[2].trim();
+                String eventsRaw = parts[3].trim();
+
+                User owner = users.get(uid);                                            // busca el usuario en el hash
+                if (owner == null) {
+                    System.out.println("Usuario no encontrado: " + uid);
+                    continue;                                                           // saltea este proceso
+                }
+
+                MyList<Event> events = readEvents(eventsRaw);
+                Process process = new Process(pid, name, owner, events);                // crea el proceso
+                newProcesses.enqueue(process);                                          // lo mete en la cola NEW
+            }
+        } catch (IOException e) {
+            System.out.println("Error leyendo procesos: " + e.getMessage());
+        }
+    }
+    private MyList<Event> readEvents(String eventsRaw) {
+        MyList<Event> events = new MyLinkedListImpl<>();                    // lista donde vamos a guardar los eventos
+
+        String content = eventsRaw.replace("{", "").replace("}", "");      // saca las llaves { y }
+
+        String[] eventParts = content.split("#");                          // separa por #
+
+        for (String eventPart : eventParts) {
+            eventPart = eventPart.trim();                                  // saca espacios
+
+            String[] typeAndInstructions = eventPart.split(":\\[");        // separa por ":[" (uso \\ para leer "[" como un simbolo)
+
+            String typeName = typeAndInstructions[0].trim();
+            EventType type = EventType.valueOf(typeName);
+
+            String instructionsRaw = typeAndInstructions[1].replace("]", "");
+
+            MyList<String> instructions = new MyLinkedListImpl<>();
+            String[] instructionParts = instructionsRaw.split(",");               // separa por ,
+            for (String instr : instructionParts) {
+                instructions.add(instr.trim());                            // agrega cada instruccion a la lista
+            }
+
+            events.add(new Event(type, instructions));
+        }
+
+        return events;
+    }
     }
 
     @Override

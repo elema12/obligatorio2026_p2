@@ -2,10 +2,14 @@ package uy.edu.um.doors;
 
 import uy.edu.um.tad.hash.MyHash;
 import uy.edu.um.tad.hash.MyHashImpl;
+import uy.edu.um.tad.heap.EmptyHeapException;
 import uy.edu.um.tad.heap.MyHeap;
 import uy.edu.um.tad.heap.MyHeapImpl;
+import uy.edu.um.tad.list.MyList;
+import uy.edu.um.tad.queue.EmptyQueueException;
 import uy.edu.um.tad.queue.MyQueue;
 import uy.edu.um.tad.queue.MyQueueImpl;
+import uy.edu.um.tad.stack.EmptyStackException;
 import uy.edu.um.tad.stack.MyStack;
 import uy.edu.um.tad.stack.MyStackImpl;
 
@@ -125,27 +129,103 @@ public class ProcessManagerImpl implements ProcessManager{
 
     @Override
     public void prepareProcesses() {
-        System.out.println("IMPLEMENTAR");
+        while ( !newProcesses.isEmpty() ) {
+            Process p = null;      // sale de la cola (FIFO)
+            try {
+                p = newProcesses.dequeue();
+            } catch (EmptyQueueException e) {
+                throw new RuntimeException(e);
+            }
+            p.setPriority(calculatePriority(p));      // calcular y set prioridad
+            p.setState(ProcessState.PENDING);         // cambiar de estado
+            pendingProcesses.insert(p);               // entra al heap
+            logger.logNewToPending(p);                // lo registra en log
+        }
+
+    }
+
+    private int calculatePriority(Process p) {
+        MyList<Event> events = p.getEvents();
+        int nTotal = events.size();
+        int nCpu = 0;
+        int nRam = 0;
+        int nDisk = 0;
+
+        for (int i = 0; i < nTotal; i++) { // por cada evento veo de que tipo es
+            switch (events.get(i).getType()) {
+                case CPU  -> nCpu++;
+                case RAM  -> nRam++;
+                case DISK -> nDisk++;
+            }
+        }
+
+        int weight = (p.getOwner().getType() == UserType.ADMIN) ? 32 : 16;  // mira el peso del dueño (Admin, Generic etc)
+
+        int priority = (8 * nCpu + 2 * nRam + 2 * nDisk) / nTotal   // hacemos el calculo con la formula
+                + weight * nTotal;
+
+        return priority;
     }
 
     @Override
     public void executeNextProcess() {
-        System.out.println("IMPLEMENTAR");
+        if (runningProcess != null) {
+            System.out.println("Ya hay un proceso en ejecución (PID=" + runningProcess.getPid() + "). Doors es monotarea.");
+            return;
+        }
+        if (pendingProcesses.isEmpty()) {
+            System.out.println("No hay procesos pendientes para ejecutar.");
+            return;
+        }
+        try {
+            Process p = pendingProcesses.remove();
+            p.setState(ProcessState.RUNNING);
+            runningProcess = p;
+            logger.logExecuting(p);
+        } catch (EmptyHeapException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void finishCurrent(FinishType type, User by) {
+        if (runningProcess == null) {
+            throw new IllegalStateException("No hay proceso en ejecución para finalizar.");
+        }
+        runningProcess.setFinishType(type);
+        if (by != null) {
+            runningProcess.setTerminatedBy(by);
+        }
+        runningProcess.setState(ProcessState.FINISHED);
+        logger.logEnding(runningProcess);
+
+        if (finishedProcesses.size() == MAX_FINISHED_PROCESS_ON_RAM) {
+            try {
+                logger.logStackOverflow(finishedProcesses); // vacía la pila y la loguea
+            } catch (EmptyStackException e) {
+                throw new RuntimeException(e); // no puede pasar: chequeamos size() antes
+            }
+        }
+        finishedProcesses.push(runningProcess);
+        runningProcess = null;
     }
 
     @Override
     public void finishProcessOk() {
-        System.out.println("IMPLEMENTAR");
+        finishCurrent(FinishType.OK, null);
     }
 
     @Override
     public void finishProcessError() {
-        System.out.println("IMPLEMENTAR");
+        finishCurrent(FinishType.ERROR, null);
     }
 
     @Override
     public void terminateProcess(int uid) {
-        System.out.println("IMPLEMENTAR");
+        if (!users.contains(uid)) {
+            throw new IllegalArgumentException("UID " + uid + " no existe en el sistema.");
+        }
+        User u = users.get(uid);
+        finishCurrent(FinishType.TERMINATED, u);
     }
 
     @Override
@@ -168,3 +248,8 @@ public class ProcessManagerImpl implements ProcessManager{
         System.out.println("IMPLEMENTAR");
     }
 }
+
+
+
+
+

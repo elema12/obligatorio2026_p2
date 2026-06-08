@@ -128,6 +128,10 @@ public class ProcessManagerImpl implements ProcessManager{
         return events;
     }
 
+    public void printCargados() {
+        System.out.println("Usuarios cargados: " + users.size());
+        System.out.println("Procesos en cola NEW: " + newProcesses.size());
+    }
 
     @Override
     public void prepareProcesses() {

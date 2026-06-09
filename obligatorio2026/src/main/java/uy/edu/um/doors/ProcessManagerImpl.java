@@ -434,6 +434,7 @@ public class ProcessManagerImpl implements ProcessManager{
 
     @Override
     public void printStatusByProcess(int pid) {
+        System.out.println("PROCESS STATUS - PID:" + pid);
         // Buscamos en el proceso en ejecución
         if (runningProcess != null && runningProcess.getPid() == pid) {
             System.out.println("\tPID=" + runningProcess.getPid() + " | " + runningProcess.getName() +
@@ -491,10 +492,10 @@ public class ProcessManagerImpl implements ProcessManager{
                 finishedProcesses.push(p);
                 if (p.getPid() == pid && !found) {
                     found = true;
-                    System.out.println("\tPID=" + p.getPid() + " | " + p.getName() +
+                    System.out.println("\tPID=" + p.getPid() + " " + p.getName() +
+                            " | STATE: " + p.getFinishType() +
                             " | USER:" + p.getOwner().getAlias() +
-                            " UID:" + p.getOwner().getUid() +
-                            " | P=" + p.getPriority());
+                            " UID:" + p.getOwner().getUid());
                     for (int i = 0; i < p.getEvents().size(); i++) {
                         Event ev = p.getEvents().get(i);
                         System.out.print("\t  EVENT: " + ev.getType() + " | Instructions [");

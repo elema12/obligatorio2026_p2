@@ -20,8 +20,6 @@ import uy.edu.um.tad.list.MyLinkedListImpl;
 
 public class ProcessManagerImpl implements ProcessManager{
 
-    //EL DISEÑO DE LA ESTRUCTURA DE ALMACENAMIENTO DEBE IMPLEMENTARSE EN ESTA CLASE EN RELACIÓN CON LAS ENTIDADES QUE DEFINA
-
     /** Cola FIFO de procesos en estado NEW. Esperan que prepareProcesses() les calcule prioridad. */
     private final MyQueue<Process> newProcesses;
 
@@ -153,11 +151,14 @@ public class ProcessManagerImpl implements ProcessManager{
     private int calculatePriority(Process p) {
         MyList<Event> events = p.getEvents();
         int nTotal = events.size();
+
+        if (nTotal == 0) return 0;  // proceso sin eventos: prioridad mínima
+
         int nCpu = 0;
         int nRam = 0;
         int nDisk = 0;
 
-        for (int i = 0; i < nTotal; i++) { // por cada evento veo de que tipo es
+        for (int i = 0; i < nTotal; i++) {
             switch (events.get(i).getType()) {
                 case CPU  -> nCpu++;
                 case RAM  -> nRam++;
@@ -165,9 +166,9 @@ public class ProcessManagerImpl implements ProcessManager{
             }
         }
 
-        int weight = (p.getOwner().getType() == UserType.ADMIN) ? 32 : 16;  // mira el peso del dueño (Admin, Generic etc)
+        int weight = (p.getOwner().getType() == UserType.ADMIN) ? 32 : 16;
 
-        int priority = (8 * nCpu + 2 * nRam + 2 * nDisk) / nTotal   // hacemos el calculo con la formula
+        int priority = (8 * nCpu + 2 * nRam + 2 * nDisk) / nTotal
                 + weight * nTotal;
 
         return priority;
@@ -195,7 +196,8 @@ public class ProcessManagerImpl implements ProcessManager{
 
     private void finishCurrent(FinishType type, User by) {
         if (runningProcess == null) {
-            throw new IllegalStateException("No hay proceso en ejecución para finalizar.");
+            System.out.println("No hay proceso en ejecución para finalizar.");
+            return;
         }
         runningProcess.setFinishType(type);
         if (by != null) {
@@ -208,7 +210,7 @@ public class ProcessManagerImpl implements ProcessManager{
             try {
                 logger.logStackOverflow(finishedProcesses);
             } catch (EmptyStackException e) {
-                throw new RuntimeException(e);
+                // No debería ocurrir: size == MAX > 0 garantiza pila no vacía
             }
         }
         finishedProcesses.push(runningProcess);
@@ -228,7 +230,8 @@ public class ProcessManagerImpl implements ProcessManager{
     @Override
     public void terminateProcess(int uid) {
         if (!users.contains(uid)) {
-            throw new IllegalArgumentException("UID " + uid + " no existe en el sistema.");
+            System.out.println("UID " + uid + " no existe en el sistema.");
+            return;
         }
         User u = users.get(uid);
         finishCurrent(FinishType.TERMINATED, u);

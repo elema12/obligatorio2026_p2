@@ -136,7 +136,7 @@ public class ProcessManagerImpl implements ProcessManager{
     @Override
     public void prepareProcesses() {
         while ( !newProcesses.isEmpty() ) {
-            Process p = null;      // sale de la cola (FIFO)
+            Process p = null;
             try {
                 p = newProcesses.dequeue();
             } catch (EmptyQueueException e) {
@@ -206,9 +206,9 @@ public class ProcessManagerImpl implements ProcessManager{
 
         if (finishedProcesses.size() == MAX_FINISHED_PROCESS_ON_RAM) {
             try {
-                logger.logStackOverflow(finishedProcesses); // vacía la pila y la loguea
+                logger.logStackOverflow(finishedProcesses);
             } catch (EmptyStackException e) {
-                throw new RuntimeException(e); // no puede pasar: chequeamos size() antes
+                throw new RuntimeException(e);
             }
         }
         finishedProcesses.push(runningProcess);

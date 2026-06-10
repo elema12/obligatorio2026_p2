@@ -271,34 +271,31 @@ public class ProcessManagerImpl implements ProcessManager{
         // Sacamos para poner de nuevo
 
         // FINISHED: la pila tampoco tiene iterador.
-        // La volcamos en una pila temporal (invirtiendo el orden)
-        // imprimimos, y restauramos el orden original
+        // Como queremos mostrar el más reciente primero (orden inverso al de finalización),
+        // imprimimos cuando sacamos de finishedProcesses (el top es el último que finalizó).
+        // Vamos guardando en tempStack para después restaurar el orden original.
 
         System.out.println("FINISHED:");
 
         MyStack<Process> tempStack = new MyStackImpl<>();
 
         while (!finishedProcesses.isEmpty()) {
-            try { tempStack.push(finishedProcesses.pop()); } catch (EmptyStackException e) {}
-        }
-        // pop: saca el de arriba. pop: pone el de arriba.
-        // es decir, saca el de arriba de finished y meta arriba en tempStack.
-        // saca todos los de finishedProcesses y los pone en el stack (orden inverso)
-
-        while (!tempStack.isEmpty()) {
             try {
-                Process p = tempStack.pop();
-                finishedProcesses.push(p); // restauramos
-                String line = "\tPID=" + p.getPid() + " " + p.getName() + " | STATE: " + p.getFinishType();
-                // Si fue terminado forzadamente mostramos quién lo terminó
-                if (p.getFinishType() == FinishType.TERMINATED && p.getTerminatedBy() != null) {
-                    line += " | USER:" + p.getTerminatedBy().getAlias() + " UID:" + p.getTerminatedBy().getUid();
-                } else {
-                    line += " | USER:" + p.getOwner().getAlias() + " UID:" + p.getOwner().getUid();
-                }
+                Process p = finishedProcesses.pop();
+                tempStack.push(p); // lo guardamos para restaurar
+                // Siempre mostramos el dueño del proceso (no quién lo terminó).
+                // El "by USER" aparece en el log de ENDING PROCESS, no en pstatus.
+                String line = "\tPID=" + p.getPid() + " " + p.getName() +
+                        " | STATE: " + p.getFinishType() +
+                        " | USER:" + p.getOwner().getAlias() +
+                        " UID:" + p.getOwner().getUid();
                 System.out.println(line);
             } catch (EmptyStackException e) {}
-            //Si falla, seguir.
+        }
+
+        // Restauramos finishedProcesses al orden original
+        while (!tempStack.isEmpty()) {
+            try { finishedProcesses.push(tempStack.pop()); } catch (EmptyStackException e) {}
         }
     }
 
@@ -354,20 +351,19 @@ public class ProcessManagerImpl implements ProcessManager{
             pendingProcesses.insert(temp.remove());
         }
 
-        // FINISHED: mismo truco de la pila temporal
+        // FINISHED: mismo truco, pero imprimiendo al sacar de finishedProcesses
+        // para que el más reciente aparezca primero.
         System.out.println("FINISHED:");
         MyStack<Process> tempStack = new MyStackImpl<>();
         while (!finishedProcesses.isEmpty()) {
-            try { tempStack.push(finishedProcesses.pop()); } catch (EmptyStackException e) {}
-        }
-        while (!tempStack.isEmpty()) {
             try {
-                Process p = tempStack.pop();
-                finishedProcesses.push(p); // restauramos
-                System.out.println("\tPID=" + p.getPid() + " | " + p.getName() +
+                Process p = finishedProcesses.pop();
+                tempStack.push(p); // guardamos para restaurar
+                // Los procesos finalizados se muestran con STATE, no con prioridad.
+                System.out.println("\tPID=" + p.getPid() + " " + p.getName() +
+                        " | STATE: " + p.getFinishType() +
                         " | USER:" + p.getOwner().getAlias() +
-                        " UID:" + p.getOwner().getUid() +
-                        " | P=" + p.getPriority());
+                        " UID:" + p.getOwner().getUid());
                 // Detalle de cada evento del proceso finalizado
                 for (int i = 0; i < p.getEvents().size(); i++) {
                     Event ev = p.getEvents().get(i);
@@ -379,6 +375,10 @@ public class ProcessManagerImpl implements ProcessManager{
                     System.out.println("]");
                 }
             } catch (EmptyStackException e) {}
+        }
+        // Restauramos finishedProcesses
+        while (!tempStack.isEmpty()) {
+            try { finishedProcesses.push(tempStack.pop()); } catch (EmptyStackException e) {}
         }
     }
 
@@ -417,13 +417,11 @@ public class ProcessManagerImpl implements ProcessManager{
         // FINISHED: filtramos por uid
         System.out.println("FINISHED:");
         MyStack<Process> tempStack = new MyStackImpl<>();
+        // Imprimimos al sacar de finishedProcesses para mostrar el más reciente primero
         while (!finishedProcesses.isEmpty()) {
-            try { tempStack.push(finishedProcesses.pop()); } catch (EmptyStackException e) {}
-        }
-        while (!tempStack.isEmpty()) {
             try {
-                Process p = tempStack.pop();
-                finishedProcesses.push(p);
+                Process p = finishedProcesses.pop();
+                tempStack.push(p); // guardamos para restaurar
                 // Solo imprimimos si el proceso pertenece al usuario buscado
                 if (p.getOwner().getUid() == uid) {
                     System.out.println("\tPID=" + p.getPid() + " " + p.getName() +
@@ -433,6 +431,10 @@ public class ProcessManagerImpl implements ProcessManager{
                 }
             } catch (EmptyStackException e) {}
         }
+        // Restauramos finishedProcesses
+        while (!tempStack.isEmpty()) {
+            try { finishedProcesses.push(tempStack.pop()); } catch (EmptyStackException e) {}
+        }
     }
 
     @Override
@@ -440,6 +442,7 @@ public class ProcessManagerImpl implements ProcessManager{
         System.out.println("PROCESS STATUS - PID:" + pid);
         // Buscamos en el proceso en ejecución
         if (runningProcess != null && runningProcess.getPid() == pid) {
+            System.out.println("EXECUTING:");
             System.out.println("\tPID=" + runningProcess.getPid() + " | " + runningProcess.getName() +
                     " | USER:" + runningProcess.getOwner().getAlias() +
                     " UID:" + runningProcess.getOwner().getUid() +
@@ -464,6 +467,7 @@ public class ProcessManagerImpl implements ProcessManager{
             temp.insert(p);
             if (p.getPid() == pid && !found) {
                 found = true;
+                System.out.println("PENDING:");
                 System.out.println("\tPID=" + p.getPid() + " | " + p.getName() +
                         " | USER:" + p.getOwner().getAlias() +
                         " UID:" + p.getOwner().getUid() +
@@ -495,6 +499,7 @@ public class ProcessManagerImpl implements ProcessManager{
                 finishedProcesses.push(p);
                 if (p.getPid() == pid && !found) {
                     found = true;
+                    System.out.println("FINISHED:");
                     System.out.println("\tPID=" + p.getPid() + " " + p.getName() +
                             " | STATE: " + p.getFinishType() +
                             " | USER:" + p.getOwner().getAlias() +
@@ -517,8 +522,3 @@ public class ProcessManagerImpl implements ProcessManager{
         }
     }
 }
-
-
-
-
-

@@ -10,125 +10,124 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-
-// Escribe los eventos del sistema operativo en un archivo.
-// cada llamada agrega al final sin sobrescribir lo anterior.
-
 public class Logger {
 
-    private static final DateTimeFormatter TS_FORMAT =
+    private static final DateTimeFormatter formatoTimestamp =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private static final DateTimeFormatter FILE_DATE_FORMAT =
+    private static final DateTimeFormatter formatoFechaArchivo =
             DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    private final String fileName;
+    private final String nombreArchivo;
 
     public Logger() {
-        // El archivo se nombra con la fecha del día en que arranca el sistema
-        this.fileName = "DOORS_PROCESS_LOG_" + LocalDate.now().format(FILE_DATE_FORMAT) + ".txt";
+        // el nombre del archivo lo generamos con la fecha de hoy
+        this.nombreArchivo = "DOORS_PROCESS_LOG_" + LocalDate.now().format(formatoFechaArchivo) + ".txt";
     }
 
-    // Log cuando un proceso pasa de NEW a PENDING (durante pprepare).
-    // NEW PENDING PROCESS: PID=123 | notepad.exe | USER:admin UID:525 | P=8541
-
-    public void logNewToPending(Process p) {
-        String line = timestamp() + ": NEW PENDING PROCESS: "
-                + "PID=" + p.getPid()
-                + " | " + p.getName()
-                + " | USER:" + p.getOwner().getAlias()
-                + " UID:" + p.getOwner().getUid()
-                + " | P=" + p.getPriority();
-        writeLine(line);
+    // cuando el proceso pasa de NEW a PENDING
+    public void logNewToPending(Process proceso) {
+        String linea = obtenerTimestamp() + ": NEW PENDING PROCESS: "
+                + "PID=" + proceso.getPid()
+                + " | " + proceso.getName()
+                + " | USER:" + proceso.getOwner().getAlias()
+                + " UID:" + proceso.getOwner().getUid()
+                + " | P=" + proceso.getPriority();
+        escribirLinea(linea);
     }
 
-    // cuando un proceso comienza a ejecutarse (durante pexecute).
+    // cuando empieza a ejecutarse
+    public void logExecuting(Process proceso) {
+        String lineaPrincipal = obtenerTimestamp()
+                + ": EXECUTING PROCESS: "
+                + "PID=" + proceso.getPid()
+                + " | USER:" + proceso.getOwner().getAlias()
+                + " UID:" + proceso.getOwner().getUid();
 
-    public void logExecuting(Process p) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(timestamp())
-                .append(": EXECUTING PROCESS: ")
-                .append("PID=").append(p.getPid())
-                .append(" | USER:").append(p.getOwner().getAlias())
-                .append(" UID:").append(p.getOwner().getUid());
+        StringBuilder contenidoCompleto = new StringBuilder();
+        contenidoCompleto.append(lineaPrincipal);
 
-        // Anexar cada evento del proceso en una línea aparte.
-        MyList<Event> events = p.getEvents();
-        for (int i = 0; i < events.size(); i++) {
-            Event ev = events.get(i);
-            sb.append(System.lineSeparator())
-                    .append("  EVENT: ").append(ev.getType())
-                    .append(" | Instructions ")
-                    .append(formatInstructions(ev.getInstructions()));
+        // agregamos cada evento del proceso en una línea aparte
+        MyList<Event> listaEventos = proceso.getEvents();
+        for (int i = 0; i < listaEventos.size(); i++) {
+            Event eventoActual = listaEventos.get(i);
+            contenidoCompleto.append(System.lineSeparator());
+            contenidoCompleto.append("  EVENT: ").append(eventoActual.getType());
+            contenidoCompleto.append(" | Instructions ");
+            contenidoCompleto.append(formatearInstrucciones(eventoActual.getInstructions()));
         }
 
-        writeLine(sb.toString());
+        escribirLinea(contenidoCompleto.toString());
     }
 
+    // cuando termina un proceso, ya sea normal o terminado a la fuerza
+    public void logEnding(Process proceso) {
+        String lineaBase = obtenerTimestamp()
+                + ": ENDING PROCESS: PID=" + proceso.getPid()
+                + " | STATE: " + proceso.getFinishType();
 
-    // cuando un proceso finaliza (durante pfinish).
-    // Si fue terminado por un usuario, se incluye su alias y uid.
-
-    public void logEnding(Process p) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(timestamp())
-                .append(": ENDING PROCESS: PID=").append(p.getPid())
-                .append(" | STATE: ").append(p.getFinishType());
-
-        if (p.getFinishType() == FinishType.TERMINATED && p.getTerminatedBy() != null) {
-            sb.append(" by USER:").append(p.getTerminatedBy().getAlias())
-                    .append(" UID:").append(p.getTerminatedBy().getUid());
+        // si fue terminado por un usuario lo agregamos
+        if (proceso.getFinishType() == FinishType.TERMINATED && proceso.getTerminatedBy() != null) {
+            lineaBase = lineaBase + " by USER:" + proceso.getTerminatedBy().getAlias()
+                    + " UID:" + proceso.getTerminatedBy().getUid();
         }
 
-        writeLine(sb.toString());
+        escribirLinea(lineaBase);
     }
 
-    // cuando la pila de procesos finalizados se desborda.
-    // Vuelca todos los procesos en orden inverso al de finalización
+    // cuando la pila de finalizados se llenó, hay que vaciarla y loguear todo
+    public void logStackOverflow(MyStack<Process> pilaFinalizados) throws EmptyStackException {
+        StringBuilder contenido = new StringBuilder();
+        contenido.append(obtenerTimestamp()).append(": Finished process stack overflow");
 
-    public void logStackOverflow(MyStack<Process> stack) throws EmptyStackException {
-        StringBuilder sb = new StringBuilder();
-        sb.append(timestamp()).append(": Finished process stack overflow");
-
-        while (!stack.isEmpty()) {
-            Process p = stack.pop();
-            sb.append(System.lineSeparator())
-                    .append("  PID=").append(p.getPid())
-                    .append(" ").append(p.getName())
-                    .append(" | STATE: ").append(p.getFinishType())
-                    .append(" | USER:").append(p.getOwner().getAlias())
-                    .append(" UID:").append(p.getOwner().getUid());
+        while (!pilaFinalizados.isEmpty()) {
+            Process procesoActual = pilaFinalizados.pop();
+            contenido.append(System.lineSeparator());
+            contenido.append("  PID=").append(procesoActual.getPid());
+            contenido.append(" ").append(procesoActual.getName());
+            contenido.append(" | STATE: ").append(procesoActual.getFinishType());
+            contenido.append(" | USER:").append(procesoActual.getOwner().getAlias());
+            contenido.append(" UID:").append(procesoActual.getOwner().getUid());
         }
 
-        writeLine(sb.toString());
+        escribirLinea(contenido.toString());
     }
 
-    // Devuelve el timestamp actual entre corchetes
-    private String timestamp() {
-        return "[" + LocalDateTime.now().format(TS_FORMAT) + "]";
+    // devuelve el timestamp formateado entre corchetes
+    private String obtenerTimestamp() {
+        return "[" + LocalDateTime.now().format(formatoTimestamp) + "]";
     }
 
-
-    // Formatea una lista de instrucciones .
-
-    private String formatInstructions(MyList<String> instr) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < instr.size(); i++) {
-            if (i > 0) sb.append(", ");
-            sb.append(instr.get(i));
+    // convierte la lista de instrucciones a un string legible
+    private String formatearInstrucciones(MyList<String> instrucciones) {
+        String resultado = "[";
+        for (int i = 0; i < instrucciones.size(); i++) {
+            if (i > 0) {
+                resultado = resultado + ", ";
+            }
+            resultado = resultado + instrucciones.get(i);
         }
-        sb.append("]");
-        return sb.toString();
+        resultado = resultado + "]";
+        return resultado;
     }
 
-    // Escribe una línea al archivo en modo append.
-
-    private void writeLine(String line) {
-        try (FileWriter fw = new FileWriter(fileName, true)) {
-            fw.write(line);
-            fw.write(System.lineSeparator());
+    // escribe en el archivo, en modo append para no pisar lo anterior
+    private void escribirLinea(String lineaAEscribir) {
+        FileWriter escritor = null;
+        try {
+            escritor = new FileWriter(nombreArchivo, true);
+            escritor.write(lineaAEscribir);
+            escritor.write(System.lineSeparator());
         } catch (IOException e) {
             System.err.println("ERROR escribiendo log: " + e.getMessage());
+        } finally {
+            if (escritor != null) {
+                try {
+                    escritor.close();
+                } catch (IOException e) {
+                    System.err.println("ERROR cerrando el archivo: " + e.getMessage());
+                }
+            }
         }
     }
 }

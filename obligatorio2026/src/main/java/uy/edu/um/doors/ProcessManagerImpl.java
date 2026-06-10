@@ -20,27 +20,23 @@ import uy.edu.um.tad.list.MyLinkedListImpl;
 
 public class ProcessManagerImpl implements ProcessManager{
 
-    /** Cola FIFO de procesos en estado NEW. Esperan que prepareProcesses() les calcule prioridad. */
+    // cola de procesos nuevos, esperan que prepareProcesses() les calcule la prioridad
     private final MyQueue<Process> newProcesses;
 
-    /**
-     * Heap de procesos en estado PENDING, ordenados por prioridad.
-     * Se usa isHeapMin=true porque Process.compareTo() está invertido:
-     * devuelve menor para mayor prioridad, así que el "mínimo" del heap
-     * es en realidad el de mayor prioridad.
-     */
+    // heap de pendientes ordenado por prioridad
+    // usamos isHeapMin=true porque compareTo() está invertido: menor valor = mayor prioridad
     private final MyHeap<Process> pendingProcesses;
 
-    /** Proceso actualmente en ejecución. Doors es monotarea: hay como máximo uno. null si no hay ninguno. */
+    // proceso que está corriendo ahora, null si no hay ninguno (doors es monotarea)
     private Process runningProcess;
 
-    /** Pila LIFO de procesos finalizados, con capacidad MAX_FINISHED_PROCESS_ON_RAM. */
+    // pila de procesos que ya terminaron
     private final MyStack<Process> finishedProcesses;
 
-    /** Tabla hash de usuarios indexada por UID, para búsqueda O(1) promedio. */
+    // tabla hash de usuarios, la indexamos por uid para buscar en O(1)
     private final MyHash<Integer, User> users;
 
-    /** Escritor del log del sistema. */
+    // el logger
     private final Logger logger;
 
     public ProcessManagerImpl() {

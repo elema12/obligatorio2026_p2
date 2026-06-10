@@ -111,7 +111,7 @@ public class ProcessManagerImpl implements ProcessManager{
             String instructionsRaw = typeAndInstructions[1].replace("]", "");
 
             MyList<String> instructions = new MyLinkedListImpl<>();
-            String[] instructionParts = instructionsRaw.split(",");               // separa por ,
+            String[] instructionParts = instructionsRaw.split(",");        // separa por ,
             for (String instr : instructionParts) {
                 instructions.add(instr.trim());                            // agrega cada instruccion a la lista
             }
